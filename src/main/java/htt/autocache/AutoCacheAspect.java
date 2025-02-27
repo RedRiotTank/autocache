@@ -1,14 +1,13 @@
 package htt.autocache;
 
-
 import java.util.Arrays;
+import java.util.Optional;
 import lombok.AllArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-
 import org.springframework.stereotype.Component;
 
 @Aspect
@@ -29,29 +28,21 @@ public class AutoCacheAspect {
         };
     }
 
-    private Object handleCacheable(ProceedingJoinPoint joinPoint, String cacheName) throws Throwable {
+    private Object handleCacheable(ProceedingJoinPoint joinPoint, String cacheName) {
         String key = generateCacheKey(joinPoint);
 
         Cache cache = cacheManager.getCache(cacheName);
-        if (cache != null) {
-            var cachedValue = cache.get(key);
-            if (cachedValue != null) {
-                return cachedValue.get();
-            }
-        }
-
-        Object result = joinPoint.proceed();
-        if (cache != null) {
-            cache.put(key, result);
-        }
-        return result;
+        Optional<Object> cachedValue = Optional.of(cache.get(key)).map(Cache.ValueWrapper::get);
+        return cachedValue.get();
     }
 
     private Object handleCacheEvict(ProceedingJoinPoint joinPoint, String cacheName) throws Throwable {
         Object result = joinPoint.proceed();
-        var cache = cacheManager.getCache(cacheName);
-        if (cache != null) {
-            cache.clear(); // Invalidar toda la caché
+        Cache cache = cacheManager.getCache(cacheName);
+        try {
+            cache.clear();
+        } catch (Exception e) {
+            System.err.println("Failed to clear cache: " + e.getMessage());
         }
         return result;
     }
